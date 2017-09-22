@@ -13,15 +13,15 @@ _logfile = open(os.path.join(tempfile.gettempdir(), 'ElixirSublime.log'), 'w')
 _sessions = {}
 _elixir_source_dir = ""
 
-def plugin_loaded(): 
+def plugin_loaded():
     global _elixir_source_dir
     settings = sublime.load_settings("ElixirSublime.sublime-settings")
     _elixir_source_dir = settings.get('elixir_source_dir') or ""
-    
+
     global _socket
     _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    _socket.bind(('', 0))   
+    _socket.bind(('', 0))
     _socket.listen(1)
     _socket.settimeout(5)
 
@@ -29,9 +29,9 @@ def plugin_loaded():
 
 def plugin_unloaded():
     if _logfile:
-        _logfile.close() 
+        _logfile.close()
     if _socket:
-        _socket.close()   
+        _socket.close()
     for session in _sessions.values():
         session.close()
 
@@ -55,14 +55,14 @@ def run_mix_task(cmd):
         # don't show the console window
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        
+
     else:
         launcher = ['mix']
         startupinfo = None
 
-    return subprocess.Popen( 
-        launcher + cmd.split(), 
-        cwd=cwd, 
+    return subprocess.Popen(
+        launcher + cmd.split(),
+        cwd=cwd,
         stderr=_logfile.fileno(),
         stdout=_logfile.fileno(),
         env=env,
@@ -70,12 +70,12 @@ def run_mix_task(cmd):
 
 
 def find_mix_project(cwd=None):
-    cwd = cwd or os.getcwd()   
+    cwd = cwd or os.getcwd()
     if cwd == os.path.realpath('/'):
         return None
     elif os.path.exists(os.path.join(cwd, 'mix.exs')):
         return cwd
-    else: 
+    else:
         return find_mix_project(os.path.dirname(cwd))
 
 
@@ -83,8 +83,9 @@ def find_ebin_folders(mix_project):
     paths = []
     if mix_project is not None:
         lib_path = os.path.join(mix_project, '_build/dev/lib')
-        for lib in os.listdir(lib_path):
-            paths.append(os.path.join(lib_path, lib, 'ebin'))
+        if os.path.isdir(lib_path):
+            for lib in os.listdir(lib_path):
+                paths.append(os.path.join(lib_path, lib, 'ebin'))
     return paths
 
 
@@ -97,8 +98,8 @@ def is_erlang_file(filename):
 
 
 def expand_selection(view, point_or_region, aliases={}):
-    region = view.expand_by_class(point_or_region, 
-        sublime.CLASS_WORD_START | 
+    region = view.expand_by_class(point_or_region,
+        sublime.CLASS_WORD_START |
         sublime.CLASS_WORD_END, ' (){},[]%&')
     selection = view.substr(region).strip()
     if aliases:
@@ -183,7 +184,7 @@ class ElixirSession(object):
         self.socket, _ = _socket.accept()
         self.socket.settimeout(5)
 
-        self.file = self.socket.makefile() 
+        self.file = self.socket.makefile()
 
         for lib_path in find_ebin_folders(self.mix_project):
             self.send('PATH', lib_path)
@@ -194,7 +195,7 @@ class ElixirSession(object):
             self.socket.send(b' ')
             self.socket.send(str.encode(args))
             self.socket.send(b'\n')
-            return True 
+            return True
         except (OSError, IOError):
             self.reset()
             return False
@@ -204,11 +205,11 @@ class ElixirSession(object):
             return self.file.readline().strip()
         except (OSError, IOError):
             self.reset()
-            return None  
+            return None
 
-    def close(self): 
+    def close(self):
         if self.socket:
-            self.socket.close() 
+            self.socket.close()
         if self.process:
             self.process.kill()
 
@@ -279,13 +280,13 @@ class ElixirAutocomplete(sublime_plugin.EventListener):
         aliases = find_aliases(view)
 
         session = ElixirSession.ensure(os.path.dirname(view.file_name()))
-        
+
         if not session.send('COMPLETE', expand_selection(view, locations[0], aliases=aliases)):
             return None
 
         completions = session.recv()
         if not completions:
-            return None 
+            return None
 
         seen_completions = set()
 
@@ -295,14 +296,14 @@ class ElixirAutocomplete(sublime_plugin.EventListener):
 
             if completion['type'] == 'module':
                 rv.append(('%(name)s\t%(name)s' % completion, completion['content']))
-            else: 
+            else:
                 rv.append(('%(name)s\t%(name)s/%(arity)s' % completion, completion['content']))
 
         for completion in view.extract_completions(prefix):
             if completion not in seen_completions:
-                rv.append((completion,)) 
+                rv.append((completion,))
 
-        return rv 
+        return rv
 
 try:
   from SublimeLinter.lint import Linter
@@ -310,7 +311,7 @@ try:
   class ElixirLinter(Linter):
       syntax = 'elixir'
 
-      executable = 'elixirc' 
+      executable = 'elixirc'
       tempfile_suffix = 'ex'
 
       regex = (
